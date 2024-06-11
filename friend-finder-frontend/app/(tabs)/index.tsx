@@ -1,22 +1,46 @@
-import React from 'react';
-import { StyleSheet, View, Text, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, Dimensions, ScrollView } from 'react-native';
+import Tile from '../../components/Tile';
 
 const { width } = Dimensions.get('window');
 
 export default function TabOneScreen() {
+  const [tiles, setTiles] = useState([
+    { id: 1, title: 'Big Tile', type: 'big', date: 'June 10, 2024', time: '10:00 AM', location: 'New York' },
+    { id: 2, title: 'Side Event', type: 'small', date: 'June 12, 2024', time: '2:00 PM', location: 'Los Angeles' },
+    { id: 3, title: 'Balls', type: 'small', date: 'June 15, 2024', time: '6:00 PM', location: 'San Francisco' },
+  ]);
+
+  const bigTile = tiles.find(tile => tile.type === 'big');
+
   return (
     <View style={styles.container}>
-      <View style={styles.bigTile}>
-        <Text style={styles.title}>Big Tile</Text>
-      </View>
-      <View style={styles.smallTilesContainer}>
-        <View style={styles.smallTile}>
-          <Text style={styles.title}>Small Tile 1</Text>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.bigTile}>
+          {bigTile && (
+            <Tile
+              title="Main Event"
+              date={bigTile.date}
+              time={bigTile.time}
+              location={bigTile.location}
+              style={styles.bigTileStyle}
+            />
+          )}
         </View>
-        <View style={styles.smallTile}>
-          <Text style={styles.title}>Small Tile 2</Text>
+        <View style={styles.smallTilesContainer}>
+          {tiles.filter(tile => tile.type === 'small').map(tile => (
+            <View key={tile.id} style={styles.smallTile}>
+              <Tile
+                title={tile.title}
+                date={tile.date}
+                time={tile.time}
+                location={tile.location}
+                style={styles.smallTileStyle}
+              />
+            </View>
+          ))}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -24,32 +48,33 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  scrollContainer: {
     padding: 10,
+    alignItems: 'center',
   },
   bigTile: {
     width: '100%',
-    height: 200,
-    backgroundColor: 'lightgray',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 20,
   },
   smallTilesContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
   },
   smallTile: {
-    width: (width - 30) / 2, // Subtracting padding to ensure proper spacing
-    height: 150,
-    backgroundColor: 'lightblue',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: (width - 30) / 2,
+    marginBottom: 20,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  bigTileStyle: {
+    width: '100%',
+    height: 200,
+    backgroundColor: 'white',
+  },
+  smallTileStyle: {
+    width: '100%',
+    height: 150,
+    backgroundColor: 'white',
   },
 });
