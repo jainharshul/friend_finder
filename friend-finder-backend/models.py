@@ -1,24 +1,31 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import uuid
 from firebase_admin import firestore
 from firebase_admin_setup import db
+from passlib.context import CryptContext
 
-class User:
-    def __init__(self, user_id, event_ids, friend_ids, pfp, username, password):
-        self.user_id = user_id
-        self.event_ids = event_ids
-        self.friend_ids = friend_ids
-        self.pfp = pfp
-        self.username = username
-        self.password = password
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class User(BaseModel):
+    user_id: str
+    event_ids: List[str] = []
+    friend_ids: List[str] = []
+    friend_requests: List[str] = []
+    pfp: str
+    username: str
+    password: str
 
     @staticmethod
     def from_dict(source):
         return User(
-            source.get('userId'),
-            source.get('eventIds', []),
-            source.get('friendIds', []),
-            source.get('pfp'),
-            source.get('username'),
-            source.get('password')
+            user_id=source.get('userId'),
+            event_ids=source.get('eventIds', []),
+            friend_ids=source.get('friendIds', []),
+            friend_requests=source.get('friendRequests', []),
+            pfp=source.get('pfp'),
+            username=source.get('username'),
+            password=source.get('password')
         )
 
     def to_dict(self):
@@ -26,6 +33,7 @@ class User:
             'userId': self.user_id,
             'eventIds': self.event_ids,
             'friendIds': self.friend_ids,
+            'friendRequests': self.friend_requests,
             'pfp': self.pfp,
             'username': self.username,
             'password': self.password
@@ -42,32 +50,44 @@ class User:
         else:
             return None
 
+    @staticmethod
+    def hash_password(password):
+        return pwd_context.hash(password)
 
-class Event:
-    def __init__(self, event_id, location, title, date, time, users_invited, users_attending):
-        self.event_id = event_id
-        self.location = location
-        self.title = title
-        self.date = date
-        self.time = time
-        self.users_invited = users_invited
-        self.users_attending = users_attending
+    def verify_password(self, password):
+        return pwd_context.verify(password, self.password)
+
+    @staticmethod
+    def generate_unique_id():
+        return str(uuid.uuid4())
+
+class Event(BaseModel):
+    event_id: str
+    user_id: str
+    location: str
+    title: str
+    date: str
+    time: str
+    users_invited: List[str] = []
+    users_attending: List[str] = []
 
     @staticmethod
     def from_dict(source):
         return Event(
-            source.get('eventId'),
-            source.get('location'),
-            source.get('title'),
-            source.get('date'),
-            source.get('time'),
-            source.get('usersInvited', []),
-            source.get('usersAttending', [])
+            event_id=source.get('eventId'),
+            user_id=source.get('userId'),
+            location=source.get('location'),
+            title=source.get('title'),
+            date=source.get('date'),
+            time=source.get('time'),
+            users_invited=source.get('usersInvited', []),
+            users_attending=source.get('usersAttending', [])
         )
 
     def to_dict(self):
         return {
             'eventId': self.event_id,
+            'userId': self.user_id,
             'location': self.location,
             'title': self.title,
             'date': self.date,
@@ -87,21 +107,23 @@ class Event:
         else:
             return None
 
+    @staticmethod
+    def generate_unique_id():
+        return str(uuid.uuid4())
 
-class ETA:
-    def __init__(self, user_id, time, distance, event_id):
-        self.user_id = user_id
-        self.time = time
-        self.distance = distance
-        self.event_id = event_id
+class ETA(BaseModel):
+    user_id: str
+    time: str
+    distance: float
+    event_id: str
 
     @staticmethod
     def from_dict(source):
         return ETA(
-            source.get('userId'),
-            source.get('time'),
-            source.get('distance'),
-            source.get('eventId')
+            user_id=source.get('userId'),
+            time=source.get('time'),
+            distance=source.get('distance'),
+            event_id=source.get('eventId')
         )
 
     def to_dict(self):

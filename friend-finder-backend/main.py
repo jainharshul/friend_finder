@@ -1,14 +1,26 @@
-# main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from models import User, Event, ETA
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from typing import List, Optional
+from firebase_admin import firestore
+from firebase_admin_setup import db
+
+SECRET_KEY = "YOUR_SECRET_KEY"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 app = FastAPI()
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 class UserRequest(BaseModel):
-    userId: str
-    eventIds: list
-    friendIds: list
+    eventIds: List[str]
+    friendIds: List[str]
     pfp: str
     username: str
     password: str
@@ -19,8 +31,16 @@ class EventRequest(BaseModel):
     title: str
     date: str
     time: str
-    usersInvited: list
-    usersAttending: list
+    usersInvited: List[str]
+    usersAttending: List[str]
+
+class EventUpdateRequest(BaseModel):
+    location: Optional[str] = None
+    title: Optional[str] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+    usersInvited: Optional[List[str]] = None
+    usersAttending: Optional[List[str]] = None
 
 class ETARequest(BaseModel):
     userId: str
@@ -28,31 +48,96 @@ class ETARequest(BaseModel):
     distance: float
     eventId: str
 
-@app.post("/users")
-async def create_user(user_request: UserRequest):
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class FriendRequest(BaseModel):
+    friend_username: str
+
+class FriendResponse(BaseModel):
+    friend_username: str
+    accept: bool
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    user = db.collection('users').where('username', '==', token_data.username).stream()
+    user = next(user, None)
+    if user is None:
+        raise credentials_exception
+    return User.from_dict(user.to_dict())
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    users = db.collection('users').where('username', '==', form_data.username).stream()
+    user = next(users, None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    user_data = User.from_dict(user.to_dict())
+    if not user_data.verify_password(form_data.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_data.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/register", response_model=Token)
+async def register(user_request: UserRequest):
+    existing_user = db.collection('users').where('username', '==', user_request.username).stream()
+    if any(existing_user):
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
     user = User(
-        user_id=user_request.userId,
+        user_id=User.generate_unique_id(),
         event_ids=user_request.eventIds,
         friend_ids=user_request.friendIds,
         pfp=user_request.pfp,
         username=user_request.username,
-        password=user_request.password
+        password=User.hash_password(user_request.password)
     )
     user.save()
-    return user.to_dict()
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/users/{user_id}")
-async def get_user(user_id: str):
-    user = User.get(user_id)
-    if user:
-        return user.to_dict()
-    else:
-        raise HTTPException(status_code=404, detail="User not found")
-
-@app.post("/events")
-async def create_event(event_request: EventRequest):
+@app.post("/events", response_model=Event)
+async def create_event(event_request: EventRequest, current_user: User = Depends(get_current_user)):
+    event_id = Event.generate_unique_id()
     event = Event(
-        event_id=event_request.eventId,
+        event_id=event_id,
+        user_id=current_user.user_id,
         location=event_request.location,
         title=event_request.title,
         date=event_request.date,
@@ -61,34 +146,104 @@ async def create_event(event_request: EventRequest):
         users_attending=event_request.usersAttending
     )
     event.save()
-    return event.to_dict()
+    
+    # Update user's eventIds
+    current_user.event_ids.append(event_id)
+    current_user.save()
 
-@app.get("/events/{event_id}")
-async def get_event(event_id: str):
+    return event
+
+@app.delete("/events/{event_id}")
+async def delete_event(event_id: str, current_user: User = Depends(get_current_user)):
     event = Event.get(event_id)
     if event:
-        return event.to_dict()
+        db.collection('events').document(event_id).delete()
+        # Update user's eventIds
+        current_user.event_ids.remove(event_id)
+        current_user.save()
+        return {"message": "Event deleted"}
     else:
         raise HTTPException(status_code=404, detail="Event not found")
 
-@app.post("/etas")
-async def create_eta(eta_request: ETARequest):
-    eta = ETA(
-        user_id=eta_request.userId,
-        time=eta_request.time,
-        distance=eta_request.distance,
-        event_id=eta_request.eventId
-    )
-    eta.save()
-    return eta.to_dict()
+@app.put("/events/{event_id}")
+async def edit_event(event_id: str, event_update: EventUpdateRequest, current_user: User = Depends(get_current_user)):
+    event = Event.get(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    updated_data = event.to_dict()
+    if event_update.location is not None:
+        updated_data["location"] = event_update.location
+    if event_update.title is not None:
+        updated_data["title"] = event_update.title
+    if event_update.date is not None:
+        updated_data["date"] = event_update.date
+    if event_update.time is not None:
+        updated_data["time"] = event_update.time
+    if event_update.usersInvited is not None:
+        updated_data["usersInvited"] = event_update.usersInvited
+    if event_update.usersAttending is not None:
+        updated_data["usersAttending"] = event_update.usersAttending
+    
+    db.collection('events').document(event_id).update(updated_data)
+    return {"message": "Event updated"}
 
-@app.get("/etas/{eta_id}")
-async def get_eta(eta_id: str):
-    eta = ETA.get(eta_id)
-    if eta:
-        return eta.to_dict()
+@app.get("/events/{event_id}", response_model=Event)
+async def get_event(event_id: str):
+    event = Event.get(event_id)
+    if event:
+        return event
     else:
-        raise HTTPException(status_code=404, detail="ETA not found")
+        raise HTTPException(status_code=404, detail="Event not found")
+
+@app.post("/friend/request", response_model=dict)
+async def send_friend_request(friend_request: FriendRequest, current_user: User = Depends(get_current_user)):
+    friend_user = db.collection('users').where('username', '==', friend_request.friend_username).stream()
+    friend_user = next(friend_user, None)
+    if not friend_user:
+        raise HTTPException(status_code=404, detail="Friend not found")
+    
+    friend_data = User.from_dict(friend_user.to_dict())
+    if current_user.user_id in friend_data.friend_requests or current_user.user_id in friend_data.friend_ids:
+        raise HTTPException(status_code=400, detail="Friend request already sent or already friends")
+
+    friend_data.friend_requests.append(current_user.user_id)
+    friend_data.save()
+
+    return {"message": "Friend request sent"}
+
+@app.get("/friend/requests", response_model=List[str])
+async def get_friend_requests(current_user: User = Depends(get_current_user)):
+    return current_user.friend_requests
+
+@app.post("/friend/response", response_model=dict)
+async def respond_to_friend_request(friend_response: FriendResponse, current_user: User = Depends(get_current_user)):
+    # Debugging: Print current user's friend requests
+    print(f"Current user ({current_user.username}) friend requests: {current_user.friend_requests}")
+
+    friend_user = db.collection('users').where('username', '==', friend_response.friend_username).stream()
+    friend_user = next(friend_user, None)
+    if not friend_user:
+        raise HTTPException(status_code=404, detail="Friend not found")
+    
+    friend_data = User.from_dict(friend_user.to_dict())
+    print(f"Found friend user: {friend_data.username}, Friend requests: {friend_data.friend_requests}")
+
+    if friend_data.user_id not in current_user.friend_requests:
+        raise HTTPException(status_code=400, detail="No friend request found from this user")
+
+    if friend_response.accept:
+        current_user.friend_ids.append(friend_data.user_id)
+        friend_data.friend_ids.append(current_user.user_id)
+    current_user.friend_requests.remove(friend_data.user_id)
+    current_user.save()
+    friend_data.save()
+
+    return {"message": "Friend request handled"}
+
+@app.get("/user/events", response_model=List[str])
+async def get_user_events(current_user: User = Depends(get_current_user)):
+    return current_user.event_ids
 
 if __name__ == '__main__':
     import uvicorn
