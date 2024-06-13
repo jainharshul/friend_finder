@@ -1,5 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+import base64
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from models import User, Event, ETA
 from jose import JWTError, jwt
@@ -17,6 +19,8 @@ app = FastAPI()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
 
 class UserRequest(BaseModel):
     eventIds: List[str]
@@ -244,6 +248,47 @@ async def respond_to_friend_request(friend_response: FriendResponse, current_use
 @app.get("/user/events", response_model=List[str])
 async def get_user_events(current_user: User = Depends(get_current_user)):
     return current_user.event_ids
+
+
+@app.post("/profile/picture", response_model=dict)
+async def add_profile_picture(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    file_content = await file.read()
+    file_base64 = base64.b64encode(file_content).decode('utf-8')
+    
+    current_user.pfp = file_base64
+    current_user.save()
+
+    return {"message": "Profile picture added"}
+
+@app.delete("/profile/picture", response_model=dict)
+async def delete_profile_picture(current_user: User = Depends(get_current_user)):
+    if not current_user.pfp:
+        raise HTTPException(status_code=404, detail="Profile picture not found")
+    
+    current_user.pfp = ""
+    current_user.save()
+
+    return {"message": "Profile picture deleted"}
+
+@app.put("/profile/picture", response_model=dict)
+async def edit_profile_picture(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    if not current_user.pfp:
+        raise HTTPException(status_code=404, detail="Profile picture not found")
+    
+    file_content = await file.read()
+    file_base64 = base64.b64encode(file_content).decode('utf-8')
+    
+    current_user.pfp = file_base64
+    current_user.save()
+
+    return {"message": "Profile picture updated"}
+
+@app.get("/profile/picture", response_model=dict)
+async def get_profile_picture(current_user: User = Depends(get_current_user)):
+    if not current_user.pfp:
+        raise HTTPException(status_code=404, detail="Profile picture not found")
+    
+    return JSONResponse(content={"profile_picture": current_user.pfp})
 
 if __name__ == '__main__':
     import uvicorn
