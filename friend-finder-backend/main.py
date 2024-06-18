@@ -100,8 +100,26 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return User.from_dict(user.to_dict())
 
+
+'''
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    users = db.collection('users').where('username', '==', form_data.username).stream()
+    user = next(users, None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    user_data = User.from_dict(user.to_dict())
+    if not user_data.verify_password(form_data.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_data.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+    '''
+@app.post("/token", response_model=Token)
+async def login_for_access_token():
+    form_data = OAuth2PasswordRequestForm(username="string", password="string")
     users = db.collection('users').where('username', '==', form_data.username).stream()
     user = next(users, None)
     if not user:
