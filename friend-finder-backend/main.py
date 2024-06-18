@@ -101,7 +101,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return User.from_dict(user.to_dict())
 
 
-'''
+
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     users = db.collection('users').where('username', '==', form_data.username).stream()
@@ -116,7 +116,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user_data.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-    '''
+    
+'''
 @app.post("/token", response_model=Token)
 async def login_for_access_token():
     form_data = OAuth2PasswordRequestForm(username="string", password="string")
@@ -132,6 +133,7 @@ async def login_for_access_token():
         data={"sub": user_data.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+'''
 
 @app.post("/register", response_model=Token)
 async def register(user_request: UserRequest):

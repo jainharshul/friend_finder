@@ -1,8 +1,6 @@
-import React from 'react';
-import { StyleSheet, Image, Text, View, FlatList, Button } from 'react-native';
-import { Link } from 'expo-router';
-
-import profile from '../../assets/images/profile.png'
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Image, Text, View, FlatList } from 'react-native';
+import axios from 'axios';
 
 const posts = [
   { id: '1', imageUri: 'https://example.com/post1.jpg', caption: 'Enjoying the sunshine!' },
@@ -50,12 +48,7 @@ export default function TabThreeScreen() {
         <Image source={profilePicture ? { uri: profilePicture } : require('../../assets/images/profile.png')} style={styles.profileImage} />
         <Text style={styles.name}>Harshul Jain</Text>
         <Text style={styles.username}>@hersheysbar</Text>
-        <Text style={styles.bio}>
-          Taco Bell
-        </Text>
-        <Link replace href="/login" asChild>
-          <Button title="Logout" />
-        </Link>
+        <Text style={styles.bio}>Taco Bell</Text>
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
             <Text style={styles.statNumber}>120</Text>
