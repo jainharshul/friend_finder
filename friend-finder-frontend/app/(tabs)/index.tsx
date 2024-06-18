@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Dimensions, ScrollView } from 'react-native';
 import Tile from '../../components/Tile';
 
+import { Colors, Styles } from '../../styles'
+
 const { width } = Dimensions.get('window');
 
 export default function TabOneScreen() {

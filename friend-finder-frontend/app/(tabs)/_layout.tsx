@@ -4,7 +4,8 @@ import Entypo from '@expo/vector-icons/Entypo';
 import { Link, Tabs } from 'expo-router';
 import { Pressable, View, Text } from 'react-native';
 
-import Colors from '@/constants/Colors';
+// import Colors from '@/constants/Colors';
+import { Colors, Styles } from '../../styles';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
@@ -22,7 +23,11 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: Colors.white,
+        tabBarInactiveTintColor: Colors.blue2,
+        tabBarStyle: { backgroundColor: Colors.blue1 },
+        headerStyle: { backgroundColor: Colors.blue1 },
+        headerTintColor: Colors.white,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
@@ -41,7 +46,7 @@ export default function TabLayout() {
                     <Entypo
                       name="plus"
                       size={30}
-                      color={Colors[colorScheme ?? 'light'].text}
+                      color={Colors.white}
                       style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
                     />
                   )}

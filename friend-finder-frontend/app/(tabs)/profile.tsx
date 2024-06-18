@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Image, Text, View, FlatList, TouchableOpacity } from 'react-native';
+import { StyleSheet, Image, Text, View, FlatList, Button } from 'react-native';
+import { Link } from 'expo-router';
 import profile from '../../assets/images/profile.png'
 
 const posts = [
@@ -18,6 +19,9 @@ export default function TabThreeScreen() {
         <Text style={styles.bio}>
           Taco Bell
         </Text>
+        <Link replace href="/login" asChild>
+          <Button title="Logout" />
+        </Link>
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
             <Text style={styles.statNumber}>120</Text>
