@@ -1,6 +1,5 @@
 import React from 'react';
-import { StyleSheet, Image, Text, View, FlatList, Button } from 'react-native';
-import { Link } from 'expo-router';
+import { StyleSheet, Image, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import profile from '../../assets/images/profile.png'
 
 const posts = [
@@ -10,18 +9,48 @@ const posts = [
 ];
 
 export default function TabThreeScreen() {
+  const [profilePicture, setProfilePicture] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfilePicture = async () => {
+      try {
+        const response = await axios.post('http://127.0.0.1:8000/token', {
+          username: 'string',
+          password: 'string',
+        });
+        const accessToken = response.data.access_token;
+        const profileResponse = await axios.get('http://127.0.0.1:8000/profile/picture', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        setProfilePicture(`data:image/png;base64,${profileResponse.data.profile_picture}`);
+      } catch (error) {
+        console.error('Failed to fetch profile picture', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfilePicture();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Image source={profile} style={styles.profileImage} />
+        <Image source={profilePicture ? { uri: profilePicture } : require('../../assets/images/profile.png')} style={styles.profileImage} />
         <Text style={styles.name}>Harshul Jain</Text>
         <Text style={styles.username}>@hersheysbar</Text>
         <Text style={styles.bio}>
           Taco Bell
         </Text>
-        <Link replace href="/login" asChild>
-          <Button title="Logout" />
-        </Link>
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
             <Text style={styles.statNumber}>120</Text>
