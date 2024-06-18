@@ -9,6 +9,8 @@ export default function TabOneScreen() {
     { id: 1, title: 'Big Tile', type: 'big', date: 'June 10, 2024', time: '10:00 AM', location: 'New York' },
     { id: 2, title: 'Side Event', type: 'small', date: 'June 12, 2024', time: '2:00 PM', location: 'Los Angeles' },
     { id: 3, title: 'Balls', type: 'small', date: 'June 15, 2024', time: '6:00 PM', location: 'San Francisco' },
+    { id: 4, title: 'Balls', type: 'small', date: 'June 15, 2024', time: '6:00 PM', location: 'San Francisco' },
+    { id: 5, title: 'Balls', type: 'small', date: 'June 15, 2024', time: '6:00 PM', location: 'San Francisco' },
   ]);
 
   const bigTile = tiles.find(tile => tile.type === 'big');
@@ -55,7 +57,7 @@ const styles = StyleSheet.create({
   },
   bigTile: {
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   smallTilesContainer: {
     flexDirection: 'row',
@@ -65,7 +67,7 @@ const styles = StyleSheet.create({
   },
   smallTile: {
     width: (width - 30) / 2,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   bigTileStyle: {
     width: '100%',
